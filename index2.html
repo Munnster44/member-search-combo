@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Member Search + Excel Upload</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 10px; }
+    h2 { font-size: 1.5em; margin-bottom: 10px; }
+    input, button { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; font-size: 1em; }
+    div.table-wrapper { overflow-x:auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    th { cursor: pointer; }
+    tr:nth-child(even) { background-color: #f2f2f2; }
+    th.sorted-asc::after { content: " ▲"; }
+    th.sorted-desc::after { content: " ▼"; }
+    mark { background-color: yellow; }
+    .pagination { margin-top: 10px; text-align: center; }
+    .pagination button { margin: 2px; padding: 5px 8px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+
+<h2>Member Search + Excel Upload</h2>
+
+<input type="file" id="excelFile" accept=".xlsx,.xls">
+<input type="text" id="firstNameFilter" placeholder="Filter by First Name" onkeyup="filterMembers()">
+<input type="text" id="lastNameFilter" placeholder="Filter by Last Name" onkeyup="filterMembers()">
+<input type="text" id="idFilter" placeholder="Filter by ID Number" onkeyup="filterMembers()">
+<button id="exportBtn" onclick="exportFiltered()">Download Filtered List</button>
+
+<div class="table-wrapper">
+  <table id="memberTable">
+    <thead>
+      <tr>
+        <th onclick="sortTable('First Name')">First Name</th>
+        <th onclick="sortTable('Last Name')">Last Name</th>
+        <th onclick="sortTable('Membership ID')">Membership ID</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="pagination" id="pagination"></div>
+
+<script src="xlsx.full.min.js"></script>
+<script>
+  let members = [
+    { "First Name": "John", "Last Name": "Smith", "Membership ID": "A001" },
+  ];
+
+  let filteredMembers = members;
+  let currentPage = 1;
+  const rowsPerPage = 50;
+  let currentSort = { column: '', direction: 'asc' };
+
+  // Load Excel file
+  document.getElementById('excelFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if(!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+          const data = new Uint8Array(event.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.SheetNames[0];
+          members = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+          filteredMembers = members;
+          currentPage = 1;
+          displayPage();
+      };
+      reader.readAsArrayBuffer(file);
+  });
+
+  // Highlight matches
+  function highlight(text, query) {
+      if(!query) return text;
+      const regex = new RegExp(`(${query})`, 'gi');
+      return text.replace(regex, '<mark>$1</mark>');
+  }
+
+  // Display current page
+  function displayPage() {
+      const tbody = document.querySelector('#memberTable tbody');
+      tbody.innerHTML = '';
+      const fQuery = document.getElementById('firstNameFilter').value.toLowerCase().trim();
+      const lQuery = document.getElementById('lastNameFilter').value.toLowerCase().trim();
+      const idQuery = document.getElementById('idFilter').value.toLowerCase().trim();
+
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+      const pageItems = filteredMembers.slice(start, end);
+
+      pageItems.forEach(member => {
+          tbody.innerHTML += `<tr>
+              <td>${highlight((member['First Name'] || '').toString(), fQuery)}</td>
+              <td>${highlight((member['Last Name'] || '').toString(), lQuery)}</td>
+              <td>${highlight((member['Membership ID'] || '').toString(), idQuery)}</td>
+          </tr>`;
+      });
+      renderPagination();
+  }
+
+  // Filter members (with trim + string fix)
+  function filterMembers() {
+      const fQuery = document.getElementById('firstNameFilter').value.toLowerCase().trim();
+      const lQuery = document.getElementById('lastNameFilter').value.toLowerCase().trim();
+      const idQuery = document.getElementById('idFilter').value.toLowerCase().trim();
+
+      filteredMembers = members.filter(member => {
+          const fName = (member['First Name'] || '').toString().toLowerCase().trim();
+          const lName = (member['Last Name'] || '').toString().toLowerCase().trim();
+          const idVal = (member['Membership ID'] || '').toString().toLowerCase().trim();
+
+          return (!fQuery || fName.includes(fQuery)) &&
+                 (!lQuery || lName.includes(lQuery)) &&
+                 (!idQuery || idVal.includes(idQuery));
+      });
+
+      currentPage = 1;
+      displayPage();
+  }
+
+  // Sort table
+  function sortTable(column) {
+      if(currentSort.column === column) {
+          currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+          currentSort.column = column;
+          currentSort.direction = 'asc';
+      }
+
+      filteredMembers.sort((a,b) => {
+          const valA = (a[column] || '').toString().toLowerCase();
+          const valB = (b[column] || '').toString().toLowerCase();
+          if(valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
+          if(valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
+          return 0;
+      });
+
+      document.querySelectorAll('th').forEach(th => {
+          th.classList.remove('sorted-asc', 'sorted-desc');
+          if(th.textContent === column) {
+              th.classList.add(currentSort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+          }
+      });
+
+      currentPage = 1;
+      displayPage();
+  }
+
+  // Pagination
+  function renderPagination() {
+      const totalPages = Math.ceil(filteredMembers.length / rowsPerPage);
+      const container = document.getElementById('pagination');
+      container.innerHTML = '';
+      for(let i=1; i<=totalPages; i++) {
+          const btn = document.createElement('button');
+          btn.textContent = i;
+          if(i === currentPage) btn.disabled = true;
+          btn.addEventListener('click', () => { currentPage = i; displayPage(); });
+          container.appendChild(btn);
+      }
+  }
+
+  // Export filtered list
+  function exportFiltered() {
+      const idQuery = document.getElementById('idFilter').value.toLowerCase().trim();
+      let exportData = filteredMembers;
+
+      // If ID is provided, only export exact matches
+      if (idQuery) {
+          exportData = members.filter(member =>
+              member['Membership ID'] &&
+              member['Membership ID'].toString().toLowerCase().trim() === idQuery
+          );
+      }
+
+      if (exportData.length === 0) {
+          alert("No matching records to export.");
+          return;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "FilteredMembers");
+      XLSX.writeFile(wb, "FilteredMembers.xlsx");
+  }
+
+  // Initialize
+  displayPage();
+</script>
+
+</body>
+</html>
