@@ -1,197 +1,277 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Member Search + Excel Upload</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 10px; }
-    h2 { font-size: 1.5em; margin-bottom: 10px; }
-    input, button { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; font-size: 1em; }
-    div.table-wrapper { overflow-x:auto; }
-    table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
-    th { cursor: pointer; }
-    tr:nth-child(even) { background-color: #f2f2f2; }
-    th.sorted-asc::after { content: " ▲"; }
-    th.sorted-desc::after { content: " ▼"; }
-    mark { background-color: yellow; }
-    .pagination { margin-top: 10px; text-align: center; }
-    .pagination button { margin: 2px; padding: 5px 8px; font-size: 0.9em; }
-  </style>
+<meta charset="UTF-8">
+<title>Dynamic Member Management</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+body { font-family: Arial, sans-serif; background:#f9f9f9; padding:20px; }
+h2 { text-align:center; color:#333; margin-bottom:20px; }
+
+input, button { font-size:1em; padding:6px; margin:4px 0; border-radius:4px; border:1px solid #ccc; }
+input:focus { outline:none; border-color:#007bff; box-shadow:0 0 3px rgba(0,123,255,0.5); }
+
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th, td { border:1px solid #ccc; padding:8px; text-align:left; }
+th { background:#007bff; color:white; cursor:pointer; transition:0.3s; }
+tr:nth-child(even) { background:#f2f2f2; }
+tr:hover { background:#e6f7ff; cursor:pointer; }
+
+#filters { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+#filters input { flex:1 1 160px; background:#e7f0ff; border:1px solid #007bff; }
+
+button { font-weight:bold; cursor:pointer; transition:0.3s; }
+.btn-primary { background:#007bff;color:white; } .btn-primary:hover{background:#0056b3;}
+.btn-success { background:#28a745;color:white; } .btn-success:hover{background:#1e7e34;}
+.btn-warning { background:#ffc107;color:black; } .btn-warning:hover{background:#d39e00;}
+.btn-danger { background:#dc3545;color:white; } .btn-danger:hover{background:#a71d2a;}
+.btn-secondary { background:#6c757d;color:white; } .btn-secondary:hover{background:#565e64;}
+
+#formPage { display:none; background:#fff; padding:20px; border-radius:8px; max-width:600px; max-height:80vh; margin:15px auto; box-shadow:0 2px 6px rgba(0,0,0,0.1); overflow-y:auto; }
+#formPage label { display:block; font-weight:bold; margin-top:10px; }
+
+.pagination { text-align:center; margin-top:10px; }
+.pagination button { margin:2px; padding:5px 8px; border-radius:4px; }
+.pagination button.current { background:#007bff; color:white; cursor:default; }
+</style>
 </head>
 <body>
 
-<h2>Member Search + Excel Upload</h2>
+<h2>Dynamic Member Management</h2>
 
-<input type="file" id="excelFile" accept=".xlsx,.xls">
-<input type="text" id="firstNameFilter" placeholder="Filter by First Name" onkeyup="filterMembers()">
-<input type="text" id="lastNameFilter" placeholder="Filter by Last Name" onkeyup="filterMembers()">
-<input type="text" id="idFilter" placeholder="Filter by ID Number" onkeyup="filterMembers()">
-<button id="exportBtn" onclick="exportFiltered()">Download Filtered List</button>
-
-<div class="table-wrapper">
-  <table id="memberTable">
-    <thead>
-      <tr>
-        <th onclick="sortTable('First Name')">First Name</th>
-        <th onclick="sortTable('Last Name')">Last Name</th>
-        <th onclick="sortTable('Membership ID')">Membership ID</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+<!-- Upload -->
+<div>
+  <label><b>Upload Excel File:</b></label>
+  <input type="file" id="excelFile" accept=".xlsx,.xls">
 </div>
 
-<div class="pagination" id="pagination"></div>
+<!-- Search Page -->
+<div id="searchPage">
+  <div id="filters"></div>
+  <button class="btn-warning" onclick="clearFilters()">Clear Filters</button>
 
-<script src="xlsx.full.min.js"></script>
+  <div style="overflow-x:auto; max-height:400px; margin-top:10px;">
+    <table id="memberTable">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="pagination" id="pagination"></div>
+
+  <div style="margin-top:10px;">
+    <button class="btn-primary" onclick="addNewMember()">Add New Member</button>
+  </div>
+</div>
+
+<!-- Form Page -->
+<div id="formPage">
+  <h3>Member Form</h3>
+  <div id="formFields"></div>
+  <div style="margin-top:10px;">
+    <button class="btn-success" onclick="addOrUpdateMember()">Add / Update Member</button>
+    <button class="btn-danger" onclick="deleteMember()">Delete Member</button>
+    <button class="btn-warning" onclick="clearForm()">Clear Form</button>
+    <button class="btn-secondary" onclick="backToSearch()">Back to Search</button>
+  </div>
+</div>
+
+<div style="margin-top:15px;">
+  <button class="btn-success" onclick="exportExcel()">Export Updated Excel</button>
+</div>
+
 <script>
-  let members = [
-    { "First Name": "John", "Last Name": "Smith", "Membership ID": "A001" },
-  ];
+let members=[], filteredMembers=[], tableColumns=[], currentMemberIndex=-1, filterValues={}, currentPage=1, rowsPerPage=25;
 
-  let filteredMembers = members;
-  let currentPage = 1;
-  const rowsPerPage = 50;
-  let currentSort = { column: '', direction: 'asc' };
+document.getElementById('excelFile').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
 
-  // Load Excel file
-  document.getElementById('excelFile').addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    const data = new Uint8Array(evt.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-      const reader = new FileReader();
-      reader.onload = function(event) {
-          const data = new Uint8Array(event.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const firstSheet = workbook.SheetNames[0];
-          members = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
-          filteredMembers = members;
-          currentPage = 1;
-          displayPage();
-      };
-      reader.readAsArrayBuffer(file);
+    if(raw.length === 0){ alert("No data found"); return; }
+
+    // Convert all to strings
+    members = raw.map(row=>{
+      const cleaned={};
+      Object.keys(row).forEach(k=>{
+        cleaned[k.trim()] = String(row[k]).trim();
+      });
+      return cleaned;
+    });
+
+    tableColumns = Object.keys(members[0]);
+    filteredMembers = [...members];
+
+    buildFilters();
+    buildFormFields();
+    renderTable();
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function buildFilters(){
+  const div=document.getElementById('filters');
+  div.innerHTML='';
+  filterValues={};
+  tableColumns.forEach(col=>{
+    const inp=document.createElement('input');
+    inp.type='text';
+    inp.placeholder='Filter by '+col;
+    inp.addEventListener('input',()=>{
+      filterValues[col]=inp.value.toLowerCase();
+      applyFilters();
+    });
+    div.appendChild(inp);
+  });
+}
+
+function applyFilters(){
+  filteredMembers = members.filter(m =>
+    tableColumns.every(col => {
+      const val = (m[col]||'').toLowerCase();
+      const q = (filterValues[col]||'').trim();
+      return !q || val.includes(q);
+    })
+  );
+  currentPage=1;
+  renderTable();
+}
+
+function clearFilters(){
+  document.querySelectorAll('#filters input').forEach(i=>i.value='');
+  filterValues={};
+  filteredMembers=[...members];
+  currentPage=1;
+  renderTable();
+}
+
+function renderTable(){
+  const thead=document.querySelector('#memberTable thead');
+  const tbody=document.querySelector('#memberTable tbody');
+  thead.innerHTML=''; tbody.innerHTML='';
+
+  if(filteredMembers.length===0){ return; }
+
+  const headerRow=document.createElement('tr');
+  tableColumns.forEach(col=>{
+    const th=document.createElement('th');
+    th.textContent=col;
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+
+  const start=(currentPage-1)*rowsPerPage;
+  const end=start+rowsPerPage;
+  filteredMembers.slice(start,end).forEach(member=>{
+    const tr=document.createElement('tr');
+    tableColumns.forEach(col=>{
+      const td=document.createElement('td');
+      td.textContent=member[col];
+      tr.appendChild(td);
+    });
+    tr.addEventListener('click',()=>openForm(member));
+    tbody.appendChild(tr);
   });
 
-  // Highlight matches
-  function highlight(text, query) {
-      if(!query) return text;
-      const regex = new RegExp(`(${query})`, 'gi');
-      return text.replace(regex, '<mark>$1</mark>');
+  renderPagination();
+}
+
+function renderPagination(){
+  const div=document.getElementById('pagination');
+  div.innerHTML='';
+  const total=Math.ceil(filteredMembers.length/rowsPerPage);
+  if(total<=1)return;
+  for(let i=1;i<=total;i++){
+    const btn=document.createElement('button');
+    btn.textContent=i;
+    if(i===currentPage)btn.classList.add('current');
+    btn.onclick=()=>{currentPage=i;renderTable();};
+    div.appendChild(btn);
   }
+}
 
-  // Display current page
-  function displayPage() {
-      const tbody = document.querySelector('#memberTable tbody');
-      tbody.innerHTML = '';
-      const fQuery = document.getElementById('firstNameFilter').value.toLowerCase().trim();
-      const lQuery = document.getElementById('lastNameFilter').value.toLowerCase().trim();
-      const idQuery = document.getElementById('idFilter').value.toLowerCase().trim();
+function buildFormFields(){
+  const form=document.getElementById('formFields');
+  form.innerHTML='';
+  tableColumns.forEach(col=>{
+    const label=document.createElement('label');
+    label.textContent=col;
+    const input=document.createElement('input');
+    input.type='text';
+    input.id='form_'+col.replace(/\s+/g,'_');
+    input.style.width='100%';
+    form.appendChild(label);
+    form.appendChild(input);
+  });
+}
 
-      const start = (currentPage - 1) * rowsPerPage;
-      const end = start + rowsPerPage;
-      const pageItems = filteredMembers.slice(start, end);
+function openForm(member){
+  currentMemberIndex=members.findIndex(m=>JSON.stringify(m)===JSON.stringify(member));
+  tableColumns.forEach(col=>{
+    const input=document.getElementById('form_'+col.replace(/\s+/g,'_'));
+    if(input) input.value=member[col];
+  });
+  document.getElementById('searchPage').style.display='none';
+  document.getElementById('formPage').style.display='block';
+  document.getElementById('formPage').scrollTop=0;
+}
 
-      pageItems.forEach(member => {
-          tbody.innerHTML += `<tr>
-              <td>${highlight((member['First Name'] || '').toString(), fQuery)}</td>
-              <td>${highlight((member['Last Name'] || '').toString(), lQuery)}</td>
-              <td>${highlight((member['Membership ID'] || '').toString(), idQuery)}</td>
-          </tr>`;
-      });
-      renderPagination();
+function addNewMember(){
+  clearForm();
+  currentMemberIndex=-1;
+  document.getElementById('searchPage').style.display='none';
+  document.getElementById('formPage').style.display='block';
+}
+
+function backToSearch(){
+  document.getElementById('formPage').style.display='none';
+  document.getElementById('searchPage').style.display='block';
+  clearFilters();
+}
+
+function clearForm(){
+  tableColumns.forEach(col=>{
+    const input=document.getElementById('form_'+col.replace(/\s+/g,'_'));
+    if(input) input.value='';
+  });
+  currentMemberIndex=-1;
+}
+
+function addOrUpdateMember(){
+  const m={};
+  tableColumns.forEach(col=>{
+    m[col]=document.getElementById('form_'+col.replace(/\s+/g,'_')).value;
+  });
+  if(currentMemberIndex>=0) members[currentMemberIndex]=m;
+  else members.push(m);
+  filteredMembers=[...members];
+  renderTable();
+  backToSearch();
+}
+
+function deleteMember(){
+  if(currentMemberIndex>=0 && confirm("Delete this record?")){
+    members.splice(currentMemberIndex,1);
+    filteredMembers=[...members];
+    renderTable();
+    backToSearch();
   }
+}
 
-  // Filter members (with trim + string fix)
-  function filterMembers() {
-      const fQuery = document.getElementById('firstNameFilter').value.toLowerCase().trim();
-      const lQuery = document.getElementById('lastNameFilter').value.toLowerCase().trim();
-      const idQuery = document.getElementById('idFilter').value.toLowerCase().trim();
-
-      filteredMembers = members.filter(member => {
-          const fName = (member['First Name'] || '').toString().toLowerCase().trim();
-          const lName = (member['Last Name'] || '').toString().toLowerCase().trim();
-          const idVal = (member['Membership ID'] || '').toString().toLowerCase().trim();
-
-          return (!fQuery || fName.includes(fQuery)) &&
-                 (!lQuery || lName.includes(lQuery)) &&
-                 (!idQuery || idVal.includes(idQuery));
-      });
-
-      currentPage = 1;
-      displayPage();
-  }
-
-  // Sort table
-  function sortTable(column) {
-      if(currentSort.column === column) {
-          currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-      } else {
-          currentSort.column = column;
-          currentSort.direction = 'asc';
-      }
-
-      filteredMembers.sort((a,b) => {
-          const valA = (a[column] || '').toString().toLowerCase();
-          const valB = (b[column] || '').toString().toLowerCase();
-          if(valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
-          if(valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
-          return 0;
-      });
-
-      document.querySelectorAll('th').forEach(th => {
-          th.classList.remove('sorted-asc', 'sorted-desc');
-          if(th.textContent === column) {
-              th.classList.add(currentSort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
-          }
-      });
-
-      currentPage = 1;
-      displayPage();
-  }
-
-  // Pagination
-  function renderPagination() {
-      const totalPages = Math.ceil(filteredMembers.length / rowsPerPage);
-      const container = document.getElementById('pagination');
-      container.innerHTML = '';
-      for(let i=1; i<=totalPages; i++) {
-          const btn = document.createElement('button');
-          btn.textContent = i;
-          if(i === currentPage) btn.disabled = true;
-          btn.addEventListener('click', () => { currentPage = i; displayPage(); });
-          container.appendChild(btn);
-      }
-  }
-
-  // Export filtered list
-  function exportFiltered() {
-      const idQuery = document.getElementById('idFilter').value.toLowerCase().trim();
-      let exportData = filteredMembers;
-
-      // If ID is provided, only export exact matches
-      if (idQuery) {
-          exportData = members.filter(member =>
-              member['Membership ID'] &&
-              member['Membership ID'].toString().toLowerCase().trim() === idQuery
-          );
-      }
-
-      if (exportData.length === 0) {
-          alert("No matching records to export.");
-          return;
-      }
-
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "FilteredMembers");
-      XLSX.writeFile(wb, "FilteredMembers.xlsx");
-  }
-
-  // Initialize
-  displayPage();
+function exportExcel(){
+  const ws=XLSX.utils.json_to_sheet(members);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
+  XLSX.writeFile(wb,'updated_members.xlsx');
+}
 </script>
-
 </body>
 </html>
+
+
