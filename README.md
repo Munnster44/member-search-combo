@@ -8,8 +8,8 @@ Cette application web permet de gérer les données des membres de manière dyna
   Téléchargement et affichage de fichiers Excel contenant les données des membres
 - Filter members by any column dynamically  
   Filtrer les membres par n'importe quelle colonne de manière dynamique
-- Pagination (50 records per page)  
-  Pagination (50 enregistrements par page)
+- Pagination (25 records per page)  
+  Pagination (25 enregistrements par page)
 - Add, update, or delete members  
   Ajouter, modifier ou supprimer des membres
 - Export updated data back to Excel  
