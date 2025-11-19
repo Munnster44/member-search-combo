@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Member Management — v2.3.3-PWA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0b5cad" />
+
+<!-- Manifest injected dynamically -->
+<link id="manifestLink" rel="manifest" href="#">
+
+<style>
+:root {
+  --brand: #0b5cad;
+  --brand-light: #eaf2fb;
+  --brand-line: #d9e6fb;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+  --bg-main: #f6f8fb;
+  --white: #ffffff;
+  --card-border: #e5e7eb;
+  --count-bg: #f9fafb;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg-main);
+  color: var(--text-main);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+header {
+  background: linear-gradient(180deg, var(--brand), #0a529c);
+  color: var(--white);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+header h1 {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+header small {
+  font-size: 0.95rem;
+  opacity: 0.95;
+  font-weight: 700;
+}
+#appIcon {
+  width: 50px;
+  height: 50px;
+  border-radius: 10px;
+  display: inline-block;
+  background: var(--brand);
+}
+main {
+  max-width: 1200px;
+  margin: 22px auto;
+  padding: 0 16px 110px;
+}
+.card {
+  background: var(--white);
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+}
+.controls-bar {
+  background: var(--brand-light);
+  border: 1px solid var(--brand-line);
+  padding: 18px;
+  border-radius: 14px;
+  margin-top: 22px;
+  margin-bottom: 18px;
+}
+.controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px 16px;
+  align-items: center;
+}
+.btn {
+  background: var(--brand);
+  color: var(--white);
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+select,input[type=text],input[type=file] {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 1rem;
+}
+
+/* Spinner */
+#overlay {
+  position: fixed; inset: 0;
+  background: rgba(255,255,255,0.78);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.spinner {
+  width: 54px; height: 54px;
+  border: 6px solid #e5e7eb;
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg);} }
+
+/* Counts */
+.counts .line {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--count-bg);
+  border: 1px solid #eef2f7;
+  margin: 4px 0;
+}
+
+/* README */
+#readmePanel {
+  display: none;
+  margin-top: 12px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  position: relative;
+}
+.readme-close {
+  position:absolute;
+  top:8px;
+  right:10px;
+  border:1px solid var(--brand);
+  background:var(--white);
+  color:var(--brand);
+  border-radius:10px;
+  padding:4px 8px;
+  cursor:pointer;
+  font-weight:700;
+}
+
+/* Modal */
+#recordModal {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.55);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:200;
+}
+#recordCard {
+  background:var(--white);
+  width:540px; max-width:94%;
+  border-radius:14px;
+  padding:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.25);
+}
+.record-row {margin-bottom:12px;}
+.record-row label {
+  font-size:0.9rem;
+  color:#374151;
+  margin-bottom:4px;
+  font-weight:600;
+}
+.record-row input {
+  padding:9px 12px;
+  border-radius:10px;
+  border:1px solid #d1d5db;
+}
+#recordButtons {
+  display:flex;
+  gap:10px;
+  margin-top:14px;
+}
+#recordButtons .btn {flex:1;}
+
+footer {
+  position:fixed; left:0; right:0; bottom:0;
+  padding:12px 16px;
+  background:linear-gradient(180deg,var(--brand),#0a529c);
+  color:var(--white);
+  text-align:center;
+  font-size:0.92rem;
+}
+</style>
+
+<!-- Manifest builder -->
+<script>
+(function() {
+  const icon192 = "data:image/png;base64,iVBORw0KGgoAAA...";
+  const icon512 = "data:image/png;base64,iVBORw0KGgoAAA...";
+  const manifest = {
+    name:"Member Management",
+    short_name:"MM",
+    start_url:"./",
+    scope:"./",
+    display:"standalone",
+    background_color:"#0b5cad",
+    theme_color:"#0b5cad",
+    icons:[
+      {src:icon192,sizes:"192x192",type:"image/png"},
+      {src:icon512,sizes:"512x512",type:"image/png"}
+    ]
+  };
+  const blobURL = URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:"application/manifest+json"}));
+  document.getElementById("manifestLink").href = blobURL;
+})();
+</script>
+</head>
+
+<body>
+<header>
+  <h1><canvas id="appIcon"></canvas> Member Management — <small>v2.3.3-PWA</small></h1>
+</header>
+
+<main>
+<div id="overlay"><div class="spinner"></div></div>
+
+<div class="controls-bar">
+  <div class="controls-row">
+    <button class="btn" onclick="fileInput.click()">Load Excel</button>
+    <input id="fileInput" type="file" accept=".xlsx,.xls" style="display:none;">
+    <button class="btn" id="btnExport" onclick="exportToExcel()" disabled>Export Results</button>
+    <button class="btn" onclick="toggleReadme()">README</button>
+  </div>
+
+  <div class="controls-row" style="margin-top:12px;">
+    <input type="text" id="searchName" placeholder="Search Name" oninput="applyFilters()">
+    <input type="text" id="searchEmail" placeholder="Search Email" oninput="applyFilters()">
+    <input type="text" id="searchMemberID" placeholder="Member ID" oninput="applyFilters()">
+    <select id="filterDistrict" onchange="applyFilters()"><option value="">All Districts</option></select>
+    <select id="filterSquadron" onchange="applyFilters()"><option value="">All Squadrons</option></select>
+  </div>
+
+  <div class="controls-row" style="margin-top:12px;">
+    <select id="filterStatus" onchange="applyFilters()">
+      <option value="">Status: All</option><option>Active</option><option>Inactive</option>
+    </select>
+    <select id="filterMembership" onchange="applyFilters()">
+      <option value="">Membership: All</option>
+      <option>Regular</option><option>Regular Life</option>
+      <option>Former Member</option><option>Non Member</option>
+    </select>
+    <select id="filterEmailStatus" onchange="applyFilters()">
+      <option value="">Email: All</option>
+      <option value="WithEmail">With Email</option>
+      <option value="NoEmail">No Email</option>
+    </select>
+    <button class="btn" onclick="clearFilters()">Clear</button>
+  </div>
+</div>
+
+<div class="card">
+  <strong>Service Worker:</strong>
+  <span id="swStatus" style="font-weight:700;color:#0b5cad;">❌ Not Active</span>
+</div>
+
+<div id="readmePanel">
+  <button class="readme-close" onclick="toggleReadme()">×</button>
+  <h3>README — Member Management</h3>
+  <p>Fully offline PWA. Load Excel, search, filter, edit, export.</p>
+  <ul>
+    <li>Search by name, email, ID</li>
+    <li>Filter by District, Squadron, Status, Membership</li>
+    <li>Edit records</li>
+    <li>Export to Excel</li>
+    <li>Offline-ready PWA</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>Search Results</h2>
+  <div id="resultsCount" class="counts"></div>
+  <div id="resultsContainer" style="overflow-x:auto;">
+    <table id="resultsTable" style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="background:#e3eaf7;">
+          <th>ID</th><th>Name</th><th>Email</th><th>District</th>
+          <th>Squadron</th><th>Status</th><th>Membership</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="resultsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="recordModal">
+  <div id="recordCard">
+    <h2>Member Record</h2>
+
+    <div class="record-row"><label>ID</label><input id="recID"></div>
+    <div class="record-row"><label>First Name</label><input id="recFN"></div>
+    <div class="record-row"><label>Last Name</label><input id="recLN"></div>
+    <div class="record-row"><label>Email</label><input id="recEM"></div>
+    <div class="record-row"><label>District</label><input id="recDI"></div>
+    <div class="record-row"><label>Squadron</label><input id="recSQ"></div>
+    <div class="record-row"><label>Status</label><input id="recST"></div>
+    <div class="record-row"><label>Membership</label><input id="recMT"></div>
+
+    <div id="recordButtons">
+      <button class="btn" onclick="saveRecord()">Save</button>
+      <button class="btn" onclick="closeRecord()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="xlsx.full.min.js"></script>
+
+<script>
+let masterData = [];
+let filteredData = [];
+let currentRecordIndex = null;
+let lastScrollY = 0;
+
+/* Spinner */
+function showSpinner(){overlay.style.display="flex";}
+function hideSpinner(){overlay.style.display="none";}
+
+/* Load Excel */
+fileInput.addEventListener("change", e=>{
+  const f=e.target.files[0];
+  if(!f)return;
+  showSpinner();
+  const reader=new FileReader();
+  reader.onload=function(evt){
+    try{
+      const data=new Uint8Array(evt.target.result);
+      const wb=XLSX.read(data,{type:"array"});
+      const sheet=wb.Sheets[wb.SheetNames[0]];
+      masterData=XLSX.utils.sheet_to_json(sheet,{defval:""});
+      filteredData=[...masterData];
+      populateFilters();
+      applyFilters();
+      btnExport.disabled=false;
+    }catch(err){alert("Excel error: "+err.message);}
+    hideSpinner();
+  };
+  reader.readAsArrayBuffer(f);
+});
+
+/* Populate Filters */
+function populateFilters(){
+  const d=new Set(), s=new Set();
+  masterData.forEach(r=>{
+    if(r["District"]) d.add(r["District"]);
+    if(r["Squadron"]) s.add(r["Squadron"]);
+  });
+  filterDistrict.innerHTML="<option value=''>All Districts</option>";
+  [...d].sort().forEach(v=>filterDistrict.innerHTML+=`<option>${v}</option>`);
+  filterSquadron.innerHTML="<option value=''>All Squadrons</option>";
+  [...s].sort().forEach(v=>filterSquadron.innerHTML+=`<option>${v}</option>`);
+}
+
+/* Clear */
+function clearFilters(){
+  searchName.value="";
+  searchEmail.value="";
+  searchMemberID.value="";
+  filterDistrict.value="";
+  filterSquadron.value="";
+  filterStatus.value="";
+  filterMembership.value="";
+  filterEmailStatus.value="";
+  applyFilters();
+}
+
+/* Apply Filters */
+function applyFilters(){
+  const n=searchName.value.toLowerCase();
+  const e=searchEmail.value.toLowerCase();
+  const id=searchMemberID.value.toLowerCase();
+  const d=filterDistrict.value;
+  const sq=filterSquadron.value;
+  const st=filterStatus.value;
+  const mt=filterMembership.value;
+  const em=filterEmailStatus.value;
+
+  filteredData=masterData.filter(r=>{
+    if(n){
+      const full=`${r["First Name"]} ${r["Last Name"]}`.toLowerCase();
+      if(!full.includes(n))return false;
+    }
+    if(e && !String(r["Email"]||"").toLowerCase().includes(e))return false;
+    if(id && !String(r["Member ID"]||"").toLowerCase().includes(id))return false;
+    if(d && r["District"]!==d) return false;
+    if(sq && r["Squadron"]!==sq) return false;
+    if(st && r["Status"]!==st) return false;
+    if(mt && r["Membership Type"]!==mt) return false;
+    if(em==="WithEmail" && !r["Email"]) return false;
+    if(em==="NoEmail" && r["Email"]) return false;
+    return true;
+  });
+
+  renderResults();
+}
+
+/* Render Results */
+function renderResults(){
+  resultsBody.innerHTML="";
+  resultsCount.innerHTML=`<div class='line'><strong>${filteredData.length}</strong> records</div>`;
+  filteredData.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>${r["Member ID"]||""}</td>
+      <td>${r["First Name"]||""} ${r["Last Name"]||""}</td>
+      <td>${r["Email"]||""}</td>
+      <td>${r["District"]||""}</td>
+      <td>${r["Squadron"]||""}</td>
+      <td>${r["Status"]||""}</td>
+      <td>${r["Membership Type"]||""}</td>
+      <td><button class="btn" style="padding:6px 10px;" onclick="openRecord(${i})">Open</button></td>`;
+    resultsBody.appendChild(tr);
+  });
+}
+
+/* Open Record */
+function openRecord(i){
+  currentRecordIndex=i;
+  const r=filteredData[i];
+  recID.value=r["Member ID"]||"";
+  recFN.value=r["First Name"]||"";
+  recLN.value=r["Last Name"]||"";
+  recEM.value=r["Email"]||"";
+  recDI.value=r["District"]||"";
+  recSQ.value=r["Squadron"]||"";
+  recST.value=r["Status"]||"";
+  recMT.value=r["Membership Type"]||"";
+  recordModal.style.display="flex";
+}
+function closeRecord(){recordModal.style.display="none";}
+
+/* Save Record */
+function saveRecord(){
+  const r=filteredData[currentRecordIndex];
+  r["Member ID"]=recID.value;
+  r["First Name"]=recFN.value;
+  r["Last Name"]=recLN.value;
+  r["Email"]=recEM.value;
+  r["District"]=recDI.value;
+  r["Squadron"]=recSQ.value;
+  r["Status"]=recST.value;
+  r["Membership Type"]=recMT.value;
+  renderResults();
+  closeRecord();
+}
+
+/* Export */
+function exportToExcel(){
+  if(!filteredData.length){alert("No data.");return;}
+  showSpinner();
+  setTimeout(()=>{
+    const wb=XLSX.utils.book_new();
+    const sheet=XLSX.utils.json_to_sheet(filteredData);
+    XLSX.utils.book_append_sheet(wb,sheet,"Results");
+    const blob=XLSX.write(wb,{bookType:"xlsx",type:"array"});
+    const out=new Blob([blob],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const url=URL.createObjectURL(out);
+    const a=document.createElement("a");
+    const ts=new Date().toISOString().replace(/[:T]/g,"-").split(".")[0];
+    a.href=url;
+    a.download=`MemberSearch_${ts}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    hideSpinner();
+  },80);
+}
+
+/* README */
+function toggleReadme(){
+  readmePanel.style.display = (readmePanel.style.display==="block"?"none":"block");
+}
+
+/* Samsung keyboard fix */
+window.addEventListener("scroll",()=>{lastScrollY=window.scrollY;});
+window.addEventListener("resize",()=>{window.scrollTo(0,lastScrollY);});
+
+/* App Icon */
+(function drawIcon(){
+  const c=document.getElementById("appIcon");
+  const x=c.getContext("2d");
+  x.fillStyle="#0b5cad";
+  x.fillRect(0,0,50,50);
+  x.fillStyle="white";
+  x.font="bold 26px sans-serif";
+  x.textAlign="center";
+  x.textBaseline="middle";
+  x.fillText("MM",25,27);
+})();
+
+/* ---------------------------------------------------------
+   SERVICE WORKER EMBED (BLOB)
+--------------------------------------------------------- */
+(function(){
+  const sw = `
+    const CACHE='mm-233-cache';
+    self.addEventListener('install',e=>{
+      e.waitUntil(caches.open(CACHE).then(c=>c.addAll([
+        './',
+        './Member-Search-Combo_v2.3.3-PWA.html',
+        './xlsx.full.min.js'
+      ])));
+    });
+    self.addEventListener('fetch',e=>{
+      e.respondWith(
+        caches.match(e.request).then(r=>r || fetch(e.request))
+      );
+    });
+  `;
+  const blob = new Blob([sw],{type:'text/javascript'});
+  const swURL = URL.createObjectURL(blob);
+
+  navigator.serviceWorker.register(swURL,{scope:"./"})
+    .then(()=>{swStatus.textContent="✅ Active";})
+    .catch(()=>{swStatus.textContent="❌ Not Active";});
+})();
+</script>
+
+</main>
+
+<footer>
+© 2025 Glen Carruthers — Member Management v2.3.3-PWA
+</footer>
+
+</body>
+</html>
